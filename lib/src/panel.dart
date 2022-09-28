@@ -439,6 +439,26 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
   // and a listener if panelBuilder is used.
   // this is because the listener is designed only for use with linking the scrolling of
   // panels and using it for panels that don't want to linked scrolling yields odd results
+
+  Offset? lastDownPoint;
+
+  // full 화면에서 header 부분부터 drag 시작하면 scroll 이 처음이 아니라도 panel 움직이게 함
+  bool _dragStartedFromHeader() {
+    try {
+      if (_ac.value == 1.0 && // panel이 full일 때
+              lastDownPoint!.dy <
+                  ((widget.header! as Container)
+                      .constraints!
+                      .maxHeight) // drag 시작부분이 header 위치면
+          ) {
+        return true;
+      }
+    } catch (e) {
+      return false;
+    }
+    return false;
+  }
+
   Widget _gestureHandler({required Widget child}) {
     if (!widget.isDraggable) return child;
 
@@ -453,14 +473,28 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
     }
 
     return Listener(
-      onPointerDown: (PointerDownEvent p) =>
-          _vt.addPosition(p.timeStamp, p.position),
+      onPointerDown: (PointerDownEvent p) {
+        lastDownPoint = p.position;
+        _vt.addPosition(p.timeStamp, p.position);
+      },
       onPointerMove: (PointerMoveEvent p) {
         _vt.addPosition(p.timeStamp,
             p.position); // add current position for velocity tracking
+
+        if (_dragStartedFromHeader()) {
+          _scrollingEnabled = false;
+        }
+
         _onGestureSlide(p.delta.dy);
       },
-      onPointerUp: (PointerUpEvent p) => _onGestureEnd(_vt.getVelocity()),
+      onPointerUp: (PointerUpEvent p) {
+        if (_dragStartedFromHeader() && _sc.offset > 0) {
+          _scrollingEnabled = true;
+        }
+        lastDownPoint = null;
+
+        _onGestureEnd(_vt.getVelocity());
+      },
       child: child,
     );
   }
